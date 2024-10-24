@@ -8,3 +8,8 @@ typedef unsigned int  uint32;
 typedef unsigned long uint64;
 
 typedef uint64 pde_t;
+
+struct sysinfo_data {
+    uint32 free_memory;
+    uint32 running_processes;
+};

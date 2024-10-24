@@ -91,3 +91,18 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_sysinfo(void)
+{
+  struct sysinfo_data result;
+  uint64 result_addr;
+  
+  argaddr(0, &result_addr);
+
+  result.free_memory = free_memory_pages() * PGSIZE;
+  result.running_processes = running_processes();
+
+  struct proc *p = myproc();
+  return copyout(p->pagetable, result_addr, (char *)&result, sizeof(result));
+}

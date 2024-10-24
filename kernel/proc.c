@@ -693,3 +693,18 @@ procdump(void)
     printf("\n");
   }
 }
+
+// Return the number of running processes
+int
+running_processes(void)
+{
+  int count = 0;
+  for (int i = 0; i < NPROC; i++) {
+    if (proc[i].state == RUNNABLE ||
+        proc[i].state == RUNNING ||
+        proc[i].state == SLEEPING ||
+        proc[i].state == ZOMBIE
+    ) count++;
+  }
+  return count;
+}
