@@ -708,3 +708,18 @@ running_processes(void)
   }
   return count;
 }
+
+// Return the next process in the process table
+struct proc*
+find_next_process(int before_pid)
+{
+  struct proc *result = 0;
+  for (int i = 0; i < NPROC; i++) {
+    if (proc[i].pid <= before_pid) continue;
+    if (proc[i].state == UNUSED || proc[i].state == USED) continue;
+    if (!result || proc[i].pid < result->pid) {
+      result = &proc[i];
+    }
+  }
+  return result;
+}
