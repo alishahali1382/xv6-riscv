@@ -1,4 +1,12 @@
 struct stat;
+enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+struct process_data {
+    int pid;
+    int parent_pid;
+    int heap_size;
+    enum procstate state;
+    char name[16];
+};
 
 // system calls
 int fork(void);
@@ -23,7 +31,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int sysinfo(struct sysinfo_data*);
-int next_process(int before_pid, struct process_data *proc);
+int next_process(int, struct process_data*);
 
 // ulib.c
 int stat(const char*, struct stat*);

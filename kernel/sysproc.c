@@ -122,11 +122,13 @@ sys_next_process(void)
 
   struct process_data result;
   result.pid = next_process->pid;
-  memcmp(result.name, next_process->name, 16);
+  memmove(result.name, next_process->name, 16);
   result.heap_size = next_process->sz;
   result.state = next_process->state;
   result.parent_pid = next_process->parent ? next_process->parent->pid : 0;
 
   struct proc *p = myproc();
-  return copyout(p->pagetable, proc_data_addr, (char *)&result, sizeof(result));
+  if (copyout(p->pagetable, proc_data_addr, (char *)&result, sizeof(result)) < 0)
+    return -1;
+  return 1;
 }
