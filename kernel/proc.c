@@ -454,7 +454,7 @@ scheduler(void)
     // processes are waiting.
     intr_on();
 
-    int found = 0;
+    c->wfi = 1;
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
@@ -463,16 +463,16 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        c->wfi = 0;
         swtch(&c->context, &p->context);
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
-        found = 1;
       }
       release(&p->lock);
     }
-    if(found == 0) {
+    if(c->wfi) {
       // nothing to run; stop running on this core until an interrupt.
       intr_on();
       asm volatile("wfi");

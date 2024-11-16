@@ -24,6 +24,7 @@ struct cpu {
   struct context context;     // swtch() here to enter scheduler().
   int noff;                   // Depth of push_off() nesting.
   int intena;                 // Were interrupts enabled before push_off()?
+  int wfi;                    // Is the CPU in WFI mode?
 };
 
 extern struct cpu cpus[NCPU];
