@@ -33,6 +33,12 @@
 #define PLIC_SPRIORITY(hart) (PLIC + 0x201000 + (hart)*0x2000)
 #define PLIC_SCLAIM(hart) (PLIC + 0x201004 + (hart)*0x2000)
 
+// See these links:
+// https://github.com/riscv/riscv-aclint/blob/main/riscv-aclint.adoc#41-register-map
+// https://github.com/qemu/qemu/blob/44f28df24767cf9dca1ddc9b23157737c4cbb645/hw/riscv/virt.c
+#define ACLINT_SSWI 0x2F00000L
+#define ACLINT_SETSSIP(hartid) (ACLINT_SSWI + 4*(hartid))
+
 // the kernel expects there to be RAM
 // for use by the kernel and user pages
 // from physical address 0x80000000 to PHYSTOP.

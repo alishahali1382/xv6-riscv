@@ -180,6 +180,7 @@ clockintr()
 // and handle it.
 // returns 2 if timer interrupt,
 // 1 if other device,
+// 3 if supervisor software interrupt
 // 0 if not recognized.
 int
 devintr()
@@ -211,6 +212,14 @@ devintr()
     // timer interrupt.
     clockintr();
     return 2;
+  } else if(scause == 0x8000000000000001L) {
+    // supervisor software interrupt
+
+    // acknowledge the software interrupt by clearing
+    // the SSIP bit in sip.
+
+    w_sip(r_sip() & ~2);
+    return 3;
   } else {
     return 0;
   }
