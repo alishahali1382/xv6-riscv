@@ -295,6 +295,7 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+  np->niceness = p->niceness;
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -445,6 +446,7 @@ void
 scheduler(void)
 {
   struct proc *p;
+  struct proc *chosen_proc = 0;
   struct cpu *c = mycpu();
 
   c->proc = 0;
@@ -454,25 +456,35 @@ scheduler(void)
     // processes are waiting.
     intr_on();
 
-    int found = 0;
+    chosen_proc = 0;
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+      if(p->state == RUNNABLE && (chosen_proc == 0 || p->niceness < chosen_proc->niceness)) {
+        if (chosen_proc) {
+          release(&chosen_proc->lock);
+        }
+        chosen_proc = p;
       }
-      release(&p->lock);
+      else {
+        release(&p->lock);
+      }
     }
-    if(found == 0) {
+
+    if(chosen_proc) {
+      // Switch to chosen process.  It is the process's job
+      // to release its lock and then reacquire it
+      // before jumping back to us.
+      chosen_proc->state = RUNNING;
+      c->proc = chosen_proc;
+      swtch(&c->context, &chosen_proc->context);
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+
+      release(&chosen_proc->lock);
+    }
+    else {
       // nothing to run; stop running on this core until an interrupt.
       intr_on();
       asm volatile("wfi");
