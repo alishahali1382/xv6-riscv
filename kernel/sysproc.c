@@ -126,6 +126,7 @@ sys_next_process(void)
   result.heap_size = next_process->sz;
   result.state = next_process->state;
   result.parent_pid = next_process->parent ? next_process->parent->pid : 0;
+  result.niceness = next_process->niceness;
 
   struct proc *p = myproc();
   if (copyout(p->pagetable, proc_data_addr, (char *)&result, sizeof(result)) < 0)
