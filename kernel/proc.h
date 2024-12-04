@@ -104,8 +104,21 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  int count_sched;             // Number of times scheduled
 };
 
+struct proc_queue {
+  struct proc *procs[NPROC];
+  int head;
+  int tail;
+};
+
+void proc_queue_push(struct proc_queue *q, struct proc *p);
+struct proc* proc_queue_pop(struct proc_queue *q);
+struct proc* proc_queue_top(struct proc_queue *q);
+
+void scheduler_proc_runnable(struct proc *p);
 
 struct process_data {
     int pid;

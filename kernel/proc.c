@@ -249,7 +249,8 @@ userinit(void)
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
-  p->state = RUNNABLE;
+  // p->state = RUNNABLE;
+  scheduler_proc_runnable(p);
 
   release(&p->lock);
 }
@@ -319,7 +320,8 @@ fork(void)
   release(&wait_lock);
 
   acquire(&np->lock);
-  np->state = RUNNABLE;
+  // np->state = RUNNABLE;
+  scheduler_proc_runnable(np);
   release(&np->lock);
 
   return pid;
@@ -434,6 +436,21 @@ wait(uint64 addr)
   }
 }
 
+struct proc_queue mlfqs[3];
+
+int get_priority(struct proc *p) {
+  if (p->count_sched <= 0) return -1;
+  if (p->count_sched <= 1) return 0;
+  if (p->count_sched <= 3) return 1;
+  return 2;
+}
+
+void scheduler_proc_runnable(struct proc *p) {
+  p->state = RUNNABLE;
+  p->count_sched = 1;
+  proc_queue_push(&mlfqs[0], p);
+}
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -454,29 +471,48 @@ scheduler(void)
     // processes are waiting.
     intr_on();
 
-    int found = 0;
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+    while((p = proc_queue_top(&mlfqs[0])) && p->state != RUNNABLE)
+      proc_queue_pop(&mlfqs[0]);
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
-      }
-      release(&p->lock);
-    }
-    if(found == 0) {
+    if (p==0)
+      while((p = proc_queue_top(&mlfqs[1])) && p->state != RUNNABLE)
+        proc_queue_pop(&mlfqs[1]);
+
+    if (p==0)
+      while((p = proc_queue_top(&mlfqs[2])) && p->state != RUNNABLE)
+        proc_queue_pop(&mlfqs[2]);
+
+    if(p == 0) {
       // nothing to run; stop running on this core until an interrupt.
       intr_on();
       asm volatile("wfi");
+      continue;
     }
+
+    acquire(&p->lock);
+    p->state = RUNNING;
+    c->proc = p;
+    swtch(&c->context, &p->context);
+    
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    c->proc = 0;
+    if (p->state == RUNNABLE){
+      int old_priority = get_priority(p);
+      if (p->count_sched <= 3)
+        p->count_sched++;
+      
+      int new_priority = get_priority(p);
+      if (old_priority != new_priority){
+        proc_queue_pop(&mlfqs[old_priority]);
+        proc_queue_push(&mlfqs[new_priority], p);
+      }
+    }
+    else{
+      proc_queue_pop(mlfqs + get_priority(p));
+      p->count_sched = 0;
+    }
+    release(&p->lock);
   }
 }
 
@@ -513,7 +549,8 @@ yield(void)
 {
   struct proc *p = myproc();
   acquire(&p->lock);
-  p->state = RUNNABLE;
+  // p->state = RUNNABLE;
+  scheduler_proc_runnable(p);
   sched();
   release(&p->lock);
 }
@@ -584,7 +621,8 @@ wakeup(void *chan)
     if(p != myproc()){
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
-        p->state = RUNNABLE;
+        // p->state = RUNNABLE;
+        scheduler_proc_runnable(p);
       }
       release(&p->lock);
     }
@@ -605,7 +643,8 @@ kill(int pid)
       p->killed = 1;
       if(p->state == SLEEPING){
         // Wake process from sleep().
-        p->state = RUNNABLE;
+        // p->state = RUNNABLE;
+        scheduler_proc_runnable(p);
       }
       release(&p->lock);
       return 0;
@@ -722,4 +761,22 @@ find_next_process(int before_pid)
     }
   }
   return result;
+}
+
+
+void proc_queue_push(struct proc_queue *q, struct proc *p) {
+  q->procs[q->tail] = p;
+  q->tail = (q->tail + 1) % NPROC;
+}
+
+struct proc* proc_queue_pop(struct proc_queue *q) {
+  if (q->head == q->tail) return 0;
+  struct proc *result = q->procs[q->head];
+  q->head = (q->head + 1) % NPROC;
+  return result;
+}
+
+struct proc* proc_queue_top(struct proc_queue *q) {
+  if (q->head == q->tail) return 0;
+  return q->procs[q->head];
 }
