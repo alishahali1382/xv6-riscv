@@ -44,6 +44,11 @@ start()
   int id = r_mhartid();
   w_tp(id);
 
+  // enable user space access to pages in supervisor mode
+  unsigned long sstatus = r_sstatus();
+  sstatus |= SSTATUS_PUM;
+  w_sstatus(sstatus);
+
   // switch to supervisor mode and jump to main().
   asm volatile("mret");
 }
