@@ -141,6 +141,7 @@ UPROGS=\
 	$U/_zombie\
 	$U/_sysinfo\
 	$U/_ptree\
+	$U/_ptree_test\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

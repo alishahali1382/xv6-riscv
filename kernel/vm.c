@@ -149,8 +149,8 @@ walkaddr_kernel(pagetable_t pagetable, uint64 va)
     return 0;
   if((*pte & PTE_V) == 0)
     return 0;
-  if((*pte & PTE_U) != 0)
-    return 0;
+  // if((*pte & PTE_U) != 0)
+  //   return 0;
   pa = PTE2PA(*pte);
   return pa;
 }
@@ -311,12 +311,12 @@ freewalk(pagetable_t pagetable)
   // there are 2^9 = 512 PTEs in a page table.
   for(int i = 0; i < 512; i++){
     pte_t pte = pagetable[i];
-    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0 && (pte & PTE_U)){
       // this PTE points to a lower-level page table.
       uint64 child = PTE2PA(pte);
       freewalk((pagetable_t)child);
       pagetable[i] = 0;
-    } else if(pte & PTE_V){
+    } else if((pte & PTE_V) && (pte & PTE_U)){
       panic("freewalk: leaf");
     }
   }
@@ -418,7 +418,8 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
-  panic("copyin");
+  memmove(dst, (void *)srcva, len);
+  return 0;
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -428,5 +429,6 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
-  panic("copyinstr");
+  strncpy(dst, (char *)srcva, max);
+  return 0;
 }

@@ -26,6 +26,9 @@ extern char trampoline[]; // trampoline.S
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
 
+extern char etext[];
+extern pagetable_t kernel_pagetable;
+
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
@@ -200,6 +203,19 @@ proc_pagetable(struct proc *p)
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmfree(pagetable, 0);
     return 0;
+  }
+
+  kvmmap(pagetable, UART0, UART0, PGSIZE, PTE_R | PTE_W);
+  kvmmap(pagetable, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+  kvmmap(pagetable, PLIC, PLIC, 0x4000000, PTE_R | PTE_W);
+  kvmmap(pagetable, KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
+  kvmmap(pagetable, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
+  
+  struct proc *pp;
+  for(pp = proc; pp < &proc[NPROC]; pp++) {
+    uint64 va = KSTACK((int) (pp - proc));
+    uint64 pa = walkaddr_kernel(kernel_pagetable, va);
+    mappages(pagetable, va, PGSIZE, pa, PTE_R | PTE_W);
   }
 
   return pagetable;
@@ -414,6 +430,7 @@ wait(uint64 addr)
             release(&wait_lock);
             return -1;
           }
+          install_pagetable(myproc()->pagetable);
           freeproc(pp);
           release(&pp->lock);
           release(&wait_lock);
