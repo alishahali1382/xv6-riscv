@@ -264,9 +264,7 @@ growproc(int n)
 
   sz = p->sz;
   if(n > 0){
-    if((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W)) == 0) {
-      return -1;
-    }
+    sz += n;
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
@@ -295,6 +293,7 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+  np->top_of_stack = p->top_of_stack;
   np->niceness = p->niceness;
 
   // copy saved user registers.
@@ -734,4 +733,21 @@ find_next_process(int before_pid)
     }
   }
   return result;
+}
+
+// Lazy allocate heap address
+// Returns 0 if the address is not in the heap range or already allocated
+// Returns 1 if the address is allocated
+// Returns -1 if the address is in the heap range but allocation failed
+int lazy_allocate_heap(struct proc *p, uint64 addr) {
+  if (p->top_of_stack <= addr && addr <= p->sz && (walkaddr(p->pagetable, addr) == 0)) {
+    uint64 pageaddr = PGROUNDDOWN(addr);
+    uint64 page = (uint64)kalloc();
+    if (page == 0) {
+      return -1;
+    }
+    mappages(p->pagetable, pageaddr, PGSIZE, page, PTE_W|PTE_R|PTE_X|PTE_U);
+    return 1;
+  }
+  return 0;
 }

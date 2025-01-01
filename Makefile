@@ -142,6 +142,7 @@ UPROGS=\
 	$U/_sysinfo\
 	$U/_ptree\
 	$U/_ptree_test\
+	$U/_lazytest\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
