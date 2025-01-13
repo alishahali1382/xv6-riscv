@@ -264,7 +264,9 @@ growproc(int n)
 
   sz = p->sz;
   if(n > 0){
-    sz += n;
+    if((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W)) == 0) {
+      return -1;
+    }
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
@@ -293,8 +295,6 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
-  np->top_of_stack = p->top_of_stack;
-  np->niceness = p->niceness;
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -445,7 +445,6 @@ void
 scheduler(void)
 {
   struct proc *p;
-  struct proc *chosen_proc = 0;
   struct cpu *c = mycpu();
 
   c->proc = 0;
@@ -455,35 +454,25 @@ scheduler(void)
     // processes are waiting.
     intr_on();
 
-    chosen_proc = 0;
+    int found = 0;
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
-      if(p->state == RUNNABLE && (chosen_proc == 0 || p->niceness < chosen_proc->niceness)) {
-        if (chosen_proc) {
-          release(&chosen_proc->lock);
-        }
-        chosen_proc = p;
+      if(p->state == RUNNABLE) {
+        // Switch to chosen process.  It is the process's job
+        // to release its lock and then reacquire it
+        // before jumping back to us.
+        p->state = RUNNING;
+        c->proc = p;
+        swtch(&c->context, &p->context);
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+        found = 1;
       }
-      else {
-        release(&p->lock);
-      }
+      release(&p->lock);
     }
-
-    if(chosen_proc) {
-      // Switch to chosen process.  It is the process's job
-      // to release its lock and then reacquire it
-      // before jumping back to us.
-      chosen_proc->state = RUNNING;
-      c->proc = chosen_proc;
-      swtch(&c->context, &chosen_proc->context);
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
-
-      release(&chosen_proc->lock);
-    }
-    else {
+    if(found == 0) {
       // nothing to run; stop running on this core until an interrupt.
       intr_on();
       asm volatile("wfi");
@@ -703,51 +692,4 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
-}
-
-// Return the number of running processes
-int
-running_processes(void)
-{
-  int count = 0;
-  for (int i = 0; i < NPROC; i++) {
-    if (proc[i].state == RUNNABLE ||
-        proc[i].state == RUNNING ||
-        proc[i].state == SLEEPING ||
-        proc[i].state == ZOMBIE
-    ) count++;
-  }
-  return count;
-}
-
-// Return the next process in the process table
-struct proc*
-find_next_process(int before_pid)
-{
-  struct proc *result = 0;
-  for (int i = 0; i < NPROC; i++) {
-    if (proc[i].pid <= before_pid) continue;
-    if (proc[i].state == UNUSED || proc[i].state == USED) continue;
-    if (!result || proc[i].pid < result->pid) {
-      result = &proc[i];
-    }
-  }
-  return result;
-}
-
-// Lazy allocate heap address
-// Returns 0 if the address is not in the heap range or already allocated
-// Returns 1 if the address is allocated
-// Returns -1 if the address is in the heap range but allocation failed
-int lazy_allocate_heap(struct proc *p, uint64 addr) {
-  if (p->top_of_stack <= addr && addr <= p->sz && (walkaddr(p->pagetable, addr) == 0)) {
-    uint64 pageaddr = PGROUNDDOWN(addr);
-    uint64 page = (uint64)kalloc();
-    if (page == 0) {
-      return -1;
-    }
-    mappages(p->pagetable, pageaddr, PGSIZE, page, PTE_W|PTE_R|PTE_X|PTE_U);
-    return 1;
-  }
-  return 0;
 }

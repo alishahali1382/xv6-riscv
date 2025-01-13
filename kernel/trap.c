@@ -49,16 +49,8 @@ usertrap(void)
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
-
-  if (r_scause() == 13 || r_scause() == 15){
-    // Implement demand paging
-    uint64 address = r_stval();
-    struct proc *p = myproc();
-    if (lazy_allocate_heap(p, address) == -1){
-      printf("Killing process %d\n", p->pid);
-      setkilled(p);
-    }
-  } else if(r_scause() == 8){
+  
+  if(r_scause() == 8){
     // system call
 
     if(killed(p))
